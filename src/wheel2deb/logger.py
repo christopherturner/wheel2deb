@@ -52,7 +52,7 @@ class CustomLogger(logging.getLoggerClass()):
     """
 
     def __init__(self, name, level=logging.NOTSET):
-        super(logging.getLoggerClass(), self).__init__(name, level)
+        super().__init__(name, level)
         logging.addLevelName(SUMMARY, "SUCCESS")
         logging.addLevelName(TASK, "TASK")
 

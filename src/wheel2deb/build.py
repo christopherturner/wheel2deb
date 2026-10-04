@@ -5,6 +5,7 @@ from time import sleep
 from typing import List
 
 from wheel2deb import logger as logging
+from wheel2deb.logger import TASK
 from wheel2deb.utils import shell
 
 logger = logging.getLogger(__name__)
@@ -28,8 +29,9 @@ def parse_debian_control(cwd: Path):
             control[g[0]] = g[1]
 
     for k in ("Build-Depends", "Depends"):
-        m = re.findall(r"([^=\s,()]+)\s?(?:\([^)]+\))?", control[k])
-        control[k] = m
+        if k in control:
+            m = re.findall(r"([^=\s,()]+)\s?(?:\([^)]+\))?", control[k])
+            control[k] = m
 
     return control
 
@@ -57,26 +59,38 @@ def build_packages(paths: List[Path], threads: int, force_build: bool) -> None:
     """
 
     paths = [p for p in paths if not Path(str(p) + ".deb").is_file() or force_build]
-    logger.task(f"Building {len(paths)} source packages...")
+    logger.log(TASK, f"Building {len(paths)} source packages...")
 
     workers = []
     for i in range(threads):
         event = Event()
         event.set()
-        workers.append({"done": event, "path": None})
+        workers.append({"done": event, "path": None, "error": None})
 
-    def build(done, path):
-        logger.info(f"building {path}")
-        build_package(path)
-        done.set()
+    def build(done, path, error_holder):
+        try:
+            logger.info(f"building {path}")
+            rc = build_package(path)
+            if rc:
+                error_holder["msg"] = f"build failed with code {rc}"
+        except Exception as e:
+            error_holder["msg"] = f"build raised: {e}"
+        finally:
+            done.set()
 
     while False in [w["done"].is_set() for w in workers] or paths:
         for w in workers:
             if w["done"].is_set() and paths:
                 w["done"].clear()
+                w["error"] = {"msg": None}
                 w["path"] = paths.pop()
-                Thread(target=build, kwargs=w).start()
+                Thread(target=build, args=(w["done"], w["path"], w["error"])).start()
         sleep(1)
+
+    # check for errors after all builds complete
+    for w in workers:
+        if w["error"] and w["error"]["msg"]:
+            logger.error(w["error"]["msg"])
 
 
 def build_all_packages(output_directory: Path, workers: int, force_build: bool) -> None:
@@ -96,8 +110,8 @@ def build_all_packages(output_directory: Path, workers: int, force_build: bool) 
         return
 
     paths = []
-    for output_directory in output_directory.iterdir():
-        if output_directory.is_dir() and (output_directory / "debian/control").is_file():
-            paths.append(output_directory)
+    for pkg_dir in output_directory.iterdir():
+        if pkg_dir.is_dir() and (pkg_dir / "debian/control").is_file():
+            paths.append(pkg_dir)
 
     build_packages(paths, workers, force_build)

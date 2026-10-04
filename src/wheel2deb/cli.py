@@ -12,7 +12,7 @@ from wheel2deb import logger as logging
 from wheel2deb.build import build_all_packages, build_packages
 from wheel2deb.context import load_configuration
 from wheel2deb.debian import convert_wheels
-from wheel2deb.logger import enable_debug
+from wheel2deb.logger import SUMMARY, enable_debug
 from wheel2deb.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -118,10 +118,11 @@ app = typer.Typer(cls=DefaultCommandGroup)
 def print_summary_and_exit():
     start_time = time.monotonic()
     yield
-    logger.summary(
+    logger.log(
+        SUMMARY,
         f"\nWarnings: {logging.get_warning_counter()}. "
         f"Errors: {logging.get_error_counter()}. "
-        f"Elapsed: {round(time.monotonic() - start_time, 3)}s."
+        f"Elapsed: {round(time.monotonic() - start_time, 3)}s.",
     )
     # the return code is the number of errors
     sys.exit(logging.get_error_counter())

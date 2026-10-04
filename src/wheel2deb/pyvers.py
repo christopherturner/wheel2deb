@@ -5,13 +5,15 @@ import attr
 
 @attr.s(frozen=True)
 class Version:
-    major = attr.ib(type=int, converter=int)
-    minor = attr.ib(type=int, converter=int, default=0)
-    micro = attr.ib(type=int, converter=int, default=0)
+    major: int = attr.ib(converter=int)
+    minor: int = attr.ib(converter=int, default=0)
+    micro: int = attr.ib(converter=int, default=0)
 
     @classmethod
     def from_str(cls, version_str):
         m = re.match(r"(\d)(?:\.(\d+))?(?:\.(\d+))?", version_str)
+        if not m:
+            raise ValueError(f"Invalid version string: {version_str}")
         v = [int(i) if i else 0 for i in m.groups()]
         return cls(v[0], v[1], v[2])
 
@@ -29,13 +31,13 @@ class Version:
 
 @attr.s(frozen=True)
 class VersionRange:
-    min = attr.ib(type=Version, default=None)
-    max = attr.ib(type=Version, default=None)
+    min: Version | None = attr.ib(default=None)
+    max: Version | None = attr.ib(default=None)
 
-    @max.validator
-    def check(self, attribute, value):
+    @max.validator  # type: ignore[misc]
+    def _check_max(self, attribute, value):
         """Enforce max > min. Interval must be open"""
-        if value and value <= self.min:
+        if value and self.min and value <= self.min:
             raise ValueError("min must be strictly smaller than max")
 
     def __contains__(self, item):

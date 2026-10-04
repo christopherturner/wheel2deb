@@ -23,17 +23,19 @@ _cache = None
 @attr.s(frozen=True)
 class Package:
     # package name
-    name = attr.ib(type=str)
+    name: str = attr.ib()
     # upstream version
-    version = attr.ib(type=str)
+    version: str = attr.ib()
     # debian revision
-    revision = attr.ib(type=str)
-    epoch = attr.ib(type=str)
+    revision: str = attr.ib()
+    epoch: str = attr.ib()
 
     @classmethod
     def factory(cls, name, pkg_version):
-        g = PACKAGE_VER_RE.match(pkg_version).groupdict()
-        return cls(name, **g)
+        m = PACKAGE_VER_RE.match(pkg_version)
+        if not m:
+            raise ValueError(f"Invalid package version: {pkg_version}")
+        return cls(name, **m.groupdict())
 
     def __str__(self):
         # show only package name and upstream version
@@ -43,7 +45,10 @@ class Package:
 @lru_cache
 def search_package(name, arch) -> Optional[Package]:
     name = name + ":" + arch if arch else name
-    output, _ = shell(["apt-cache", "madison", name])
+    output, rc = shell(["apt-cache", "madison", name])
+    if rc:
+        logger.debug(f"apt-cache madison failed for {name}: {output}")
+        return None
     match = APT_CACHE_MADISON_RE.match(output)
     return Package.factory(name, match.group(1).strip()) if match is not None else None
 

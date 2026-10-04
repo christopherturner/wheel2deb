@@ -7,6 +7,7 @@ from dirsync import sync
 from wheel2deb import logger as logging
 from wheel2deb.context import Settings
 from wheel2deb.depends import normalize_package_version, search_python_deps, suggest_name
+from wheel2deb.logger import TASK
 from wheel2deb.pydist import Wheel, parse_wheel
 from wheel2deb.templates import environment
 from wheel2deb.utils import shell
@@ -263,8 +264,11 @@ class SourcePackage:
                 + ["-l" + str(self.src / x) for x in self.wheel.record.lib_dirs]
                 + [str(self.src / x) for x in self.wheel.record.libs]
             )
-            output, _ = shell(args, cwd=self.root)
-            missing_libs.update(DPKG_SHLIBS_RE.findall(output, re.MULTILINE))
+            output, rc = shell(args, cwd=self.root)
+            if rc:
+                logger.warning(f"dpkg-shlibdeps failed: {output}")
+            else:
+                missing_libs.update(DPKG_SHLIBS_RE.findall(output, re.MULTILINE))
 
         if missing_libs:
             logger.info(
@@ -275,7 +279,10 @@ class SourcePackage:
 
             # search packages providing those libs
             for lib in missing_libs:
-                output, _ = shell(["apt-file", "search", lib, "-a", self.arch])
+                output, rc = shell(["apt-file", "search", lib, "-a", self.arch])
+                if rc:
+                    logger.warning(f"apt-file search failed for {lib}: {output}")
+                    continue
                 packages = set(APT_FILE_RE.findall(output))
 
                 # remove dbg packages
@@ -312,7 +319,7 @@ def convert_wheels(
     output_directory.mkdir(exist_ok=True, parents=True)
 
     if wheel_paths:
-        logger.task("Unpacking %s wheels", len(wheel_paths))
+        logger.log(TASK, "Unpacking %s wheels", len(wheel_paths))
 
     wheels = []
     for file in wheel_paths:
@@ -336,7 +343,7 @@ def convert_wheels(
 
     packages = []
     for wheel in wheels:
-        logger.task(f"Converting wheel {wheel}")
+        logger.log(TASK, f"Converting wheel {wheel}")
         ctx = settings.get_ctx(wheel.wheel_name)
         package = SourcePackage(ctx, wheel, output_directory, extras=wheels)
         package.create()

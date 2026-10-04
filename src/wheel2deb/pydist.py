@@ -50,11 +50,11 @@ class Record:
     LICENSE_RE = re.compile(r"(^|[^\w])license(\..*)?$", re.IGNORECASE)
     SHLIBS_RE = re.compile(r"\.so[.\d]*")
 
-    libs = attr.ib(factory=list)
-    lib_dirs = attr.ib(factory=list)
-    licenses = attr.ib(factory=list)
-    scripts = attr.ib(factory=list)
-    files = attr.ib(factory=list)
+    libs: list = attr.ib(factory=list)
+    lib_dirs: list = attr.ib(factory=list)
+    licenses: list = attr.ib(factory=list)
+    scripts: list = attr.ib(factory=list)
+    files: list = attr.ib(factory=list)
 
     @classmethod
     def from_str(cls, content):
@@ -96,10 +96,16 @@ class Wheel:
     def __init__(self, wheel_name: str, extract_path: Path) -> None:
         self.wheel_name = wheel_name
         self.extract_path = extract_path
-        self.info_dir = next(iter(self.extract_path.glob("*.dist-info")))
+        info_dirs = list(self.extract_path.glob("*.dist-info"))
+        if not info_dirs:
+            raise ValueError(f"No .dist-info directory found in {extract_path}")
+        self.info_dir = info_dirs[0]
 
         # parse wheel name, see https://www.python.org/dev/peps/pep-0425
-        g = re.match(WHEEL_NAME_RE, self.wheel_name).groupdict()
+        m = re.match(WHEEL_NAME_RE, self.wheel_name)
+        if not m:
+            raise ValueError(f"Invalid wheel name: {self.wheel_name}")
+        g = m.groupdict()
         self.name = normalize_name(g["name"])
         self.version = g["version"]
         self.python_tag = g["python_tag"]
@@ -144,13 +150,13 @@ class Wheel:
         m = re.search(r"(\d)(\d+)", self.python_tag)
 
         if m:
-            v = Version(*m.groups())
+            v = Version(int(m.group(1)), int(m.group(2)))
             if pyvers.major != v.major:
                 return None
             else:
                 if self.abi_tag == "abi3":
-                    return VersionRange(v, None)
-                return VersionRange(v, v.inc())
+                    return VersionRange(min=v, max=None)
+                return VersionRange(min=v, max=v.inc())
 
         # TODO: use requires_python ?
         versions = []
@@ -160,11 +166,11 @@ class Wheel:
                 version = Version.from_str(m.group(1))
                 if version.major == pyvers.major and version.minor != 0:
                     versions.append(version)
-        sorted(versions)
+        versions.sort()
 
         if versions:
             # assume versions[0] and up supported
-            return VersionRange(versions[0], None)
+            return VersionRange(min=versions[0], max=None)
 
         # unable to compute python version range
         # supported by that wheel
@@ -177,7 +183,7 @@ class Wheel:
             return False
 
         requires_python = self.metadata.requires_python
-        if self.metadata.requires_python is None:
+        if not requires_python:
             # The package provides no information
             return True
 
