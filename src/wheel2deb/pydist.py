@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 EXTRACT_PATH = Path("/tmp/wheel2deb")
 
 WHEEL_NAME_RE = re.compile(
-    r"^(?P<name>.+)-(?P<version>.+)-(?P<python_tag>[pcij].+)"
-    r"-(?P<abi_tag>.+)-(?P<platform_tag>.+).whl$"
+    r"^(?P<name>[^\-]+)-(?P<version>[^\-]+)(?:-(?P<build_tag>\d[^\-]*))?"
+    r"-(?P<python_tag>[^\-]+)-(?P<abi_tag>[^\-]+)-(?P<platform_tag>[^\-]+)\.whl$"
 )
 
 

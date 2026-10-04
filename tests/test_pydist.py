@@ -49,3 +49,18 @@ def test_entrypoints__should_return_list_of_entrypoints_when_wheel_has_entrypoin
 ):
     wheel = parse_wheel(wheel_path, tmp_path)
     assert wheel.entrypoints == [Entrypoint("wheel2deb", "wheel2deb.cli", "main")]
+
+
+def test_wheel_name_with_build_tag():
+    import re
+    from wheel2deb.pydist import WHEEL_NAME_RE
+
+    m = re.match(WHEEL_NAME_RE, "foo_package-1.0.0-1-py3-none-any.whl")
+    assert m is not None
+    g = m.groupdict()
+    assert g["name"] == "foo_package"
+    assert g["version"] == "1.0.0"
+    assert g["build_tag"] == "1"
+    assert g["python_tag"] == "py3"
+    assert g["abi_tag"] == "none"
+    assert g["platform_tag"] == "any"
