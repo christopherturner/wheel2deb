@@ -12,6 +12,7 @@ from wheel2deb import logger as logging
 from wheel2deb.build import build_all_packages, build_packages
 from wheel2deb.context import load_configuration
 from wheel2deb.debian import convert_wheels
+from wheel2deb.docker import fetch_wheels_in_docker
 from wheel2deb.logger import enable_debug
 from wheel2deb.version import __version__
 
@@ -191,6 +192,56 @@ def build(
 ) -> None:
     with print_summary_and_exit():
         build_all_packages(output_directory, workers_count, force_build)
+
+
+@app.command(help="Download or build wheels inside a target Docker container.")
+def fetch(
+    packages: Optional[List[str]] = typer.Argument(None, help="Packages to fetch"),
+    requirements: Optional[Path] = typer.Option(
+        None, "--requirements", "-f", help="Path to requirements.txt"
+    ),
+    distro: str = typer.Option(
+        "debian", "--distro", "-d", help="Distribution (debian, ubuntu)"
+    ),
+    release: str = typer.Option(
+        "trixie", "--release", "-r", help="Release codename (trixie, jammy, etc.)"
+    ),
+    arch: str = typer.Option(
+        "amd64", "--arch", "-a", help="Target architecture (arm64, amd64)"
+    ),
+    apt_pkgs: Optional[str] = typer.Option(
+        None, "--apt-pkgs", "-p", help="Extra build headers"
+    ),
+    output_directory: Path = option_output_directory,
+    configuration_path: Optional[Path] = option_configuration,
+    convert_and_build: bool = typer.Option(
+        True, "--build/--no-build", help="Automatically convert and build deb packages"
+    ),
+    workers_count: int = option_workers_count,
+    force_build: bool = option_force_build,
+    verbose: bool = option_verbose,
+) -> None:
+    with print_summary_and_exit():
+        if not packages and not requirements:
+            logger.error("Specify at least one package or pass -f/--requirements")
+            sys.exit(1)
+        wheels_dir = fetch_wheels_in_docker(
+            output_directory=output_directory,
+            packages=packages,
+            requirements=requirements,
+            distro=distro,
+            release=release,
+            arch=arch,
+            apt_pkgs=apt_pkgs,
+        )
+        if not wheels_dir:
+            return
+        if convert_and_build:
+            settings = load_configuration(configuration_path)
+            wheel_paths = filter_wheels([wheels_dir], None, None)
+            debs_dir = output_directory / f"{distro}_{release}_{arch}" / "debs"
+            pkgs = convert_wheels(settings, debs_dir, wheel_paths)
+            build_packages([p.root for p in pkgs], workers_count, force_build)
 
 
 @app.command(help="Output wheel2deb version.")

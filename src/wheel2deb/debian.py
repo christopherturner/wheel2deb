@@ -30,7 +30,8 @@ APT_FILE_RE = re.compile(r"(.*lib.+):\s(?:/usr/lib/|/lib/)")
 def platform_to_arch(platform_tag):
     translation_table = {
         "x86_64": "amd64",
-        "i686": "i686",
+        "i686": "i386",
+        "i386": "i386",
         "armv7l": "armhf",
         "armv6l": "armhf",
         "aarch64": "arm64",
