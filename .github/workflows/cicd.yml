@@ -32,10 +32,10 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .venv
-          key: python-dependencies-${{ hashFiles('**/poetry.lock') }}
+          key: python-dependencies-extras-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install Python Dependencies
-        run: poetry install
+        run: poetry install --extras pyinstaller
 
       - name: Install APT Dependencies
         uses: upciti/wakemeops-action@v1
@@ -64,7 +64,6 @@ jobs:
 
       - name: Build single binary application
         run: |
-          poetry install --extras pyinstaller
           poetry run poetry-dynamic-versioning
           poetry run pyinstaller --onefile src/wheel2deb/__main__.py --name wheel2deb -s
           dist/wheel2deb version
@@ -187,6 +186,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ startsWith(github.ref, 'refs/tags') && github.ref_name || '' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Check Docker image
         run: docker run --rm ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }} --help
